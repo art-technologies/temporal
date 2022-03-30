@@ -1953,6 +1953,7 @@ func (e *historyEngineImpl) SignalWorkflowExecution(
 		WorkflowId: request.WorkflowExecution.WorkflowId,
 		RunId:      request.WorkflowExecution.RunId,
 	}
+	currentWorkflow := execution.GetRunId() == ""
 
 	return e.updateWorkflow(
 		ctx,
@@ -1968,6 +1969,10 @@ func (e *historyEngineImpl) SignalWorkflowExecution(
 			}
 
 			if !mutableState.IsWorkflowExecutionRunning() {
+				_, status := mutableState.GetWorkflowStateStatus()
+				if status == enumspb.WORKFLOW_EXECUTION_STATUS_CONTINUED_AS_NEW && currentWorkflow {
+					return nil, serviceerror.NewUnavailable("try again")
+				}
 				return nil, consts.ErrWorkflowCompleted
 			}
 
