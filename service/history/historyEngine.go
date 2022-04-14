@@ -2016,12 +2016,12 @@ func (e *historyEngineImpl) SignalWorkflowExecution(
 		execution,
 		func(workflowContext workflowContext) (*updateWorkflowAction, error) {
 			mutableState := workflowContext.getMutableState()
-			if request.GetRequestId() != "" && mutableState.IsSignalRequested(request.GetRequestId()) {
-				return &updateWorkflowAction{
-					noop:               true,
-					createWorkflowTask: false,
-				}, nil
-			}
+			//if request.GetRequestId() != "" && mutableState.IsSignalRequested(request.GetRequestId()) {
+			//	return &updateWorkflowAction{
+			//		noop:               true,
+			//		createWorkflowTask: false,
+			//	}, nil
+			//}
 
 			if !mutableState.IsWorkflowExecutionRunning() {
 				_, status := mutableState.GetWorkflowStateStatus()
@@ -2133,10 +2133,10 @@ func (e *historyEngineImpl) SignalWithStartWorkflowExecution(
 				return nil, consts.ErrSignalsLimitExceeded
 			}
 
-			if sRequest.GetRequestId() != "" && mutableState.IsSignalRequested(sRequest.GetRequestId()) {
-				// duplicate signal
-				return &historyservice.SignalWithStartWorkflowExecutionResponse{RunId: context.GetRunID()}, nil
-			}
+			//if sRequest.GetRequestId() != "" && mutableState.IsSignalRequested(sRequest.GetRequestId()) {
+			//	// duplicate signal
+			//	return &historyservice.SignalWithStartWorkflowExecutionResponse{RunId: context.GetRunID()}, nil
+			//}
 			if sRequest.GetRequestId() != "" {
 				mutableState.AddSignalRequested(sRequest.GetRequestId())
 			}
