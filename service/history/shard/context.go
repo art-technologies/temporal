@@ -68,6 +68,7 @@ type (
 		GetEngineWithContext(ctx context.Context) (Engine, error)
 
 		GetVClock() *clockpb.ShardClock
+		AssertOwnership(ctx context.Context) error
 
 		GenerateTaskID() (int64, error)
 		GenerateTaskIDs(number int) ([]int64, error)
