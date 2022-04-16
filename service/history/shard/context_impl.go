@@ -203,6 +203,27 @@ func (s *ContextImpl) GetVClock() *clockpb.ShardClock {
 	return vclock.NewShardClock(s.shardID, clock)
 }
 
+func (s *ContextImpl) AssertOwnership(
+	ctx context.Context,
+) error {
+	s.wLock()
+	defer s.wUnlock()
+
+	if err := s.errorByStateLocked(); err != nil {
+		return err
+	}
+
+	rangeID := s.getRangeIDLocked()
+	err := s.persistenceShardManager.AssertShardOwnership(ctx, &persistence.AssertShardOwnershipRequest{
+		ShardID: s.shardID,
+		RangeID: rangeID,
+	})
+	if err = s.handleWriteErrorAndUpdateMaxReadLevelLocked(err, 0); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (s *ContextImpl) GenerateTaskID() (int64, error) {
 	s.wLock()
 	defer s.wUnlock()
