@@ -453,7 +453,7 @@ func (d *MutableStateStore) CreateWorkflowExecution(
 		request.RangeID,
 	)
 
-	conflictRecord := make(map[string]interface{})
+	conflictRecord := newConflictRecord()
 	applied, conflictIter, err := d.Session.MapExecuteBatchCAS(batch, conflictRecord)
 	if err != nil {
 		return nil, gocql.ConvertError("CreateWorkflowExecution", err)
@@ -674,7 +674,7 @@ func (d *MutableStateStore) UpdateWorkflowExecution(
 		request.RangeID,
 	)
 
-	conflictRecord := make(map[string]interface{})
+	conflictRecord := newConflictRecord()
 	applied, conflictIter, err := d.Session.MapExecuteBatchCAS(batch, conflictRecord)
 	if err != nil {
 		return gocql.ConvertError("UpdateWorkflowExecution", err)
@@ -824,7 +824,7 @@ func (d *MutableStateStore) ConflictResolveWorkflowExecution(
 		request.RangeID,
 	)
 
-	conflictRecord := make(map[string]interface{})
+	conflictRecord := newConflictRecord()
 	applied, conflictIter, err := d.Session.MapExecuteBatchCAS(batch, conflictRecord)
 	if err != nil {
 		return gocql.ConvertError("ConflictResolveWorkflowExecution", err)
@@ -990,7 +990,7 @@ func (d *MutableStateStore) SetWorkflowExecution(
 		request.RangeID,
 	)
 
-	conflictRecord := make(map[string]interface{})
+	conflictRecord := newConflictRecord()
 	applied, conflictIter, err := d.Session.MapExecuteBatchCAS(batch, conflictRecord)
 	if err != nil {
 		return gocql.ConvertError("ConflictResolveWorkflowExecution", err)

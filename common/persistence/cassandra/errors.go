@@ -57,7 +57,7 @@ type (
 )
 
 func convertErrors(
-	conflictRecord map[string]interface{},
+	conflictRecordd conflictRecord,
 	conflictIter gocql.Iter,
 	requestShardID int32,
 	requestRangeID int64,
@@ -65,32 +65,32 @@ func convertErrors(
 	requestExecutionCASConditions []executionCASCondition,
 ) error {
 
-	conflictRecords := []map[string]interface{}{conflictRecord}
+	conflictRecords := []conflictRecord{conflictRecordd}
 	errors := extractErrors(
-		conflictRecord,
+		conflictRecordd,
 		requestShardID,
 		requestRangeID,
 		requestCurrentRunID,
 		requestExecutionCASConditions,
 	)
 
-	conflictRecord = make(map[string]interface{})
-	for conflictIter.MapScan(conflictRecord) {
-		if conflictRecord["[applied]"].(bool) {
+	conflictRecordd = newConflictRecord()
+	for conflictIter.MapScan(conflictRecordd) {
+		if conflictRecordd["[applied]"].(bool) {
 			// Should never happen. All records in batch should have [applied]=false.
 			continue
 		}
 
-		conflictRecords = append(conflictRecords, conflictRecord)
+		conflictRecords = append(conflictRecords, conflictRecordd)
 		errors = append(errors, extractErrors(
-			conflictRecord,
+			conflictRecordd,
 			requestShardID,
 			requestRangeID,
 			requestCurrentRunID,
 			requestExecutionCASConditions,
 		)...)
 
-		conflictRecord = make(map[string]interface{})
+		conflictRecordd = newConflictRecord()
 	}
 
 	if len(errors) == 0 {
@@ -111,8 +111,25 @@ func convertErrors(
 	return errors[0]
 }
 
+type conflictRecord map[string]interface{}
+
+func (r conflictRecord) Type() (int, bool) {
+	typ, ok := r["type"].(*int)
+	if !ok || typ == nil {
+		return 0, false
+	}
+	return *typ, true
+}
+
+func newConflictRecord() conflictRecord {
+	typ := new(int)
+	return map[string]interface{}{
+		"type": &typ,
+	}
+}
+
 func extractErrors(
-	conflictRecord map[string]interface{},
+	conflictRecordd conflictRecord,
 	requestShardID int32,
 	requestRangeID int64,
 	requestCurrentRunID string,
@@ -122,7 +139,7 @@ func extractErrors(
 	var errors []error
 
 	if err := extractShardOwnershipLostError(
-		conflictRecord,
+		conflictRecordd,
 		requestShardID,
 		requestRangeID,
 	); err != nil {
@@ -130,7 +147,7 @@ func extractErrors(
 	}
 
 	if err := extractCurrentWorkflowConflictError(
-		conflictRecord,
+		conflictRecordd,
 		requestCurrentRunID,
 	); err != nil {
 		errors = append(errors, err)
@@ -138,7 +155,7 @@ func extractErrors(
 
 	for _, condition := range requestExecutionCASConditions {
 		if err := extractWorkflowConflictError(
-			conflictRecord,
+			conflictRecordd,
 			condition.runID,
 			condition.dbVersion,
 			condition.nextEventID,
@@ -168,11 +185,11 @@ func sortErrors(
 }
 
 func extractShardOwnershipLostError(
-	conflictRecord map[string]interface{},
+	conflictRecordd conflictRecord,
 	requestShardID int32,
 	requestRangeID int64,
 ) error {
-	rowType, ok := conflictRecord["type"].(int)
+	rowType, ok := conflictRecordd.Type()
 	if !ok {
 		// this case should not happen, maybe panic?
 		return nil
@@ -181,7 +198,7 @@ func extractShardOwnershipLostError(
 		return nil
 	}
 
-	actualRangeID := conflictRecord["range_id"].(int64)
+	actualRangeID := conflictRecordd["range_id"].(int64)
 	if actualRangeID != requestRangeID {
 		return &p.ShardOwnershipLostError{
 			ShardID: requestShardID,
@@ -195,10 +212,10 @@ func extractShardOwnershipLostError(
 }
 
 func extractCurrentWorkflowConflictError(
-	conflictRecord map[string]interface{},
+	conflictRecordd conflictRecord,
 	requestCurrentRunID string,
 ) error {
-	rowType, ok := conflictRecord["type"].(int)
+	rowType, ok := conflictRecordd.Type()
 	if !ok {
 		// this case should not happen, maybe panic?
 		return nil
@@ -206,14 +223,14 @@ func extractCurrentWorkflowConflictError(
 	if rowType != rowTypeExecution {
 		return nil
 	}
-	if runID := gocql.UUIDToString(conflictRecord["run_id"]); runID != permanentRunID {
+	if runID := gocql.UUIDToString(conflictRecordd["run_id"]); runID != permanentRunID {
 		return nil
 	}
 
-	actualCurrentRunID := gocql.UUIDToString(conflictRecord["current_run_id"])
+	actualCurrentRunID := gocql.UUIDToString(conflictRecordd["current_run_id"])
 	if actualCurrentRunID != requestCurrentRunID {
-		binary, _ := conflictRecord["execution_state"].([]byte)
-		encoding, _ := conflictRecord["execution_state_encoding"].(string)
+		binary, _ := conflictRecordd["execution_state"].([]byte)
+		encoding, _ := conflictRecordd["execution_state_encoding"].(string)
 		executionState := &persistencespb.WorkflowExecutionState{}
 		if state, err := serialization.WorkflowExecutionStateFromBlob(
 			binary,
@@ -223,7 +240,7 @@ func extractCurrentWorkflowConflictError(
 		}
 		// if err != nil, this means execution state cannot be parsed, just use default values
 
-		lastWriteVersion, _ := conflictRecord["workflow_last_write_version"].(int64)
+		lastWriteVersion, _ := conflictRecordd["workflow_last_write_version"].(int64)
 
 		// TODO maybe assert actualCurrentRunID == executionState.RunId ?
 
@@ -243,12 +260,12 @@ func extractCurrentWorkflowConflictError(
 }
 
 func extractWorkflowConflictError(
-	conflictRecord map[string]interface{},
+	conflictRecordd conflictRecord,
 	requestRunID string,
 	requestDBVersion int64,
 	requestNextEventID int64, // TODO deprecate this variable once DB version comparison is the default
 ) error {
-	rowType, ok := conflictRecord["type"].(int)
+	rowType, ok := conflictRecordd.Type()
 	if !ok {
 		// this case should not happen, maybe panic?
 		return nil
@@ -256,12 +273,12 @@ func extractWorkflowConflictError(
 	if rowType != rowTypeExecution {
 		return nil
 	}
-	if runID := gocql.UUIDToString(conflictRecord["run_id"]); runID != requestRunID {
+	if runID := gocql.UUIDToString(conflictRecordd["run_id"]); runID != requestRunID {
 		return nil
 	}
 
-	actualNextEventID, _ := conflictRecord["next_event_id"].(int64)
-	actualDBVersion, _ := conflictRecord["db_record_version"].(int64)
+	actualNextEventID, _ := conflictRecordd["next_event_id"].(int64)
+	actualDBVersion, _ := conflictRecordd["db_record_version"].(int64)
 
 	// TODO remove this block once DB version comparison is the default
 	if requestDBVersion == 0 {
@@ -292,7 +309,7 @@ func extractWorkflowConflictError(
 }
 
 func printRecords(
-	records []map[string]interface{},
+	records []conflictRecord,
 ) string {
 	binary, _ := json.MarshalIndent(records, "", "  ")
 	return string(binary)
