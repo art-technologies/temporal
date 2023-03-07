@@ -63,6 +63,8 @@ require (
 	modernc.org/sqlite v1.20.0
 )
 
+require github.com/klauspost/cpuid/v2 v2.0.3 // indirect
+
 require (
 	cloud.google.com/go v0.107.0 // indirect
 	cloud.google.com/go/compute v1.15.1 // indirect
@@ -140,3 +142,5 @@ require (
 	modernc.org/strutil v1.1.3 // indirect
 	modernc.org/token v1.1.0 // indirect
 )
+
+replace github.com/gocql/gocql => github.com/scylladb/gocql v1.10.0
